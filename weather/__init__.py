@@ -55,7 +55,7 @@ def geocode(latitude, longitude):
             # wxman: ???
             'obs_qualifier_code': observation['qualifier'],
             'ptend_code': observation['pressure_tend'],
-            'dow': datetime.datetime.utcfromtimestamp(observation['expire_time_gmt']).strftime('%A'),
+            'dow': datetime.datetime.utcfromtimestamp(observation['valid_time_gmt']).strftime('%A'),
             'wdir_cardinal': observation['wdir_cardinal'],  # sometimes this is "CALM", don't know if that's okay
             'uv_desc': observation['uv_desc'],
             # I'm just guessing at how the three phrases map.

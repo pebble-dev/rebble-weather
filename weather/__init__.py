@@ -3,11 +3,13 @@ import os
 import time
 
 import requests
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, abort
+from werkzeug.exceptions import HTTPException
 from werkzeug.routing import FloatConverter
 
 app = Flask(__name__)
 
+auth_root = os.environ['AUTH_ROOT']
 ibm_root = os.environ['IBM_API_ROOT']
 
 # For some reason, the standard float converter rejects negative numbers
@@ -23,8 +25,22 @@ def format_date(date):
     return date.strftime("%Y-%m-%dT%H:%M:%S")
 
 
+class HTTPPaymentRequired(HTTPException):
+    def __init__(self, description=None, response=None):
+        self.code = 402
+        super().__init__(description, response)
+
+
 @app.route('/api/v1/geocode/<float:latitude>/<float:longitude>/')
 def geocode(latitude, longitude):
+    if not request.args.get('access_token'):
+        abort(401)
+    user_req = requests.get(f"{auth_root}/api/v1/me",
+                            headers={'Authorization': f"Bearer {request.args['access_token']}"})
+    user_req.raise_for_status()
+    if not user_req.json()['is_subscribed']:
+        raise HTTPPaymentRequired()
+
     units = request.args.get('units', 'h')
     language = request.args.get('language', 'en-US')
 

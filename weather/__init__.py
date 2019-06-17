@@ -11,6 +11,7 @@ app = Flask(__name__)
 
 domain_root = os.environ['DOMAIN_ROOT']
 ibm_root = os.environ['IBM_API_ROOT']
+http_protocol = os.environ.get('HTTP_PROTOCOL', 'https')
 
 # For some reason, the standard float converter rejects negative numbers
 # (and also integers without a decimal point).
@@ -39,7 +40,7 @@ def heartbeat():
 def geocode(latitude, longitude):
     if not request.args.get('access_token'):
         abort(401)
-    user_req = requests.get(f"http://auth.{domain_root}/api/v1/me",
+    user_req = requests.get(f"{http_protocol}://auth.{domain_root}/api/v1/me",
                             headers={'Authorization': f"Bearer {request.args['access_token']}"})
     user_req.raise_for_status()
     if not user_req.json()['is_subscribed']:

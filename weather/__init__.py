@@ -2,14 +2,21 @@ import datetime
 import os
 import time
 
+import beeline
+from beeline.middleware.flask import HoneyMiddleware
+from beeline.patch import requests
+
 import requests
 from flask import Flask, request, jsonify, abort
 from werkzeug.exceptions import HTTPException
 from werkzeug.routing import FloatConverter
 
 app = Flask(__name__)
+if config['HONEYCOMB_KEY']:
+     beeline.init(writekey=config['HONEYCOMB_KEY'], dataset='rws', service_name='auth')
+     HoneyMiddleware(app, db_events = True)
 
-domain_root = os.environ['DOMAIN_ROOT']
+auth_internal = os.environ['REBBLE_AUTH_URL_INT']
 ibm_root = os.environ['IBM_API_ROOT']
 http_protocol = os.environ.get('HTTP_PROTOCOL', 'https')
 
@@ -40,14 +47,18 @@ def heartbeat():
 def geocode(latitude, longitude):
     if not request.args.get('access_token'):
         abort(401)
-    user_req = requests.get(f"{http_protocol}://auth.{domain_root}/api/v1/me",
+    user_req = requests.get(f"{auth_internal}/api/v1/me",
                             headers={'Authorization': f"Bearer {request.args['access_token']}"})
     user_req.raise_for_status()
     if not user_req.json()['is_subscribed']:
         raise HTTPPaymentRequired()
+    beeline.add_context_field("user", user_req.json()['id'])
 
     units = request.args.get('units', 'h')
     language = request.args.get('language', 'en-US')
+    
+    beeline.add_context_field("weather.language", language)
+    beeline.add_context_field("weather.units", units)
 
     forecast_req = requests.get(f"{ibm_root}/geocode/{latitude}/{longitude}/forecast/daily/7day.json?language={language}&units={units}")
     forecast_req.raise_for_status()

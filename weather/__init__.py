@@ -12,8 +12,8 @@ from werkzeug.exceptions import HTTPException
 from werkzeug.routing import FloatConverter
 
 app = Flask(__name__)
-if config['HONEYCOMB_KEY']:
-     beeline.init(writekey=config['HONEYCOMB_KEY'], dataset='rws', service_name='auth')
+if 'HONEYCOMB_KEY' in os.environ:
+     beeline.init(writekey=os.environ['HONEYCOMB_KEY'], dataset='rws', service_name='auth')
      HoneyMiddleware(app, db_events = True)
 
 auth_internal = os.environ['REBBLE_AUTH_URL_INT']

@@ -2,8 +2,8 @@ steps:
 - name: 'gcr.io/cloud-builders/docker'
   args:
   - build
-  - "--tag=gcr.io/pebble-rebirth/timeline-sync:$TAG_NAME"
+  - "--tag=gcr.io/pebble-rebirth/weather:$TAG_NAME"
   - "--file=./Dockerfile.cloudrun"
   - .
 images:
-- "gcr.io/pebble-rebirth/timeline-sync"
+- "gcr.io/pebble-rebirth/weather"

@@ -12,8 +12,8 @@ from werkzeug.exceptions import HTTPException
 from werkzeug.routing import FloatConverter
 
 app = Flask(__name__)
-if 'HONEYCOMB_KEY' in os.environ:
-     beeline.init(writekey=os.environ['HONEYCOMB_KEY'], dataset='rws', service_name='auth')
+if os.environ.get('HONEYCOMB_KEY'):
+     beeline.init(writekey=os.environ['HONEYCOMB_KEY'], dataset='rws', service_name='weather')
      HoneyMiddleware(app, db_events = True)
 
 auth_internal = os.environ['REBBLE_AUTH_URL_INT']
@@ -49,10 +49,12 @@ def geocode(latitude, longitude):
         abort(401)
     user_req = requests.get(f"{auth_internal}/api/v1/me",
                             headers={'Authorization': f"Bearer {request.args['access_token']}"})
+    if user_req.status_code == 401:
+        abort(401)
     user_req.raise_for_status()
     if not user_req.json()['is_subscribed']:
         raise HTTPPaymentRequired()
-    beeline.add_context_field("user", user_req.json()['id'])
+    beeline.add_context_field("user", user_req.json()['uid'])
 
     units = request.args.get('units', 'h')
     language = request.args.get('language', 'en-US')

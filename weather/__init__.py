@@ -17,7 +17,8 @@ if os.environ.get('HONEYCOMB_KEY'):
      HoneyMiddleware(app, db_events = True)
 
 auth_internal = os.environ['REBBLE_AUTH_URL_INT']
-ibm_root = os.environ['IBM_API_ROOT']
+ibm_root = os.environ.get('IBM_API_ROOT', 'https://api.weather.com')
+ibm_key = os.environ['IBM_API_KEY']
 http_protocol = os.environ.get('HTTP_PROTOCOL', 'https')
 
 # For some reason, the standard float converter rejects negative numbers
@@ -62,11 +63,11 @@ def geocode(latitude, longitude):
     beeline.add_context_field("weather.language", language)
     beeline.add_context_field("weather.units", units)
 
-    forecast_req = requests.get(f"{ibm_root}/geocode/{latitude}/{longitude}/forecast/daily/7day.json?language={language}&units={units}")
+    forecast_req = requests.get(f"{ibm_root}/v3/wx/forecast/daily/7day?geocode={latitude},{longitude}&format=json&units={units}&language={language}&apiKey={ibm_key}")
     forecast_req.raise_for_status()
     forecast = forecast_req.json()
 
-    current_req = requests.get(f"{ibm_root}/geocode/{latitude}/{longitude}/observations.json?language={language}&units={units}")
+    current_req = requests.get(f"{ibm_root}/v1/geocode/{latitude}/{longitude}/observations.json?language={language}&units={units}&apiKey={ibm_key}")
     current_req.raise_for_status()
     current = current_req.json()
     observation = current['observation']

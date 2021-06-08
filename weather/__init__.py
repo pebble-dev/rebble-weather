@@ -186,6 +186,7 @@ def geocode(latitude, longitude):
     
     beeline.add_context_field("weather.language", language)
     beeline.add_context_field("weather.units", units)
+    beeline.add_context_field("weather.api_version", "v2")
 
     forecast_req = requests.get(f"{ibm_root}/v3/wx/forecast/daily/7day?geocode={latitude},{longitude}&format=json&units={units}&language={language}&apiKey={ibm_key}")
     forecast_req.raise_for_status()

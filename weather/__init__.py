@@ -33,6 +33,130 @@ app.url_map.converters['float'] = SignedFloatConverter
 def format_date(date):
     return date.strftime("%Y-%m-%dT%H:%M:%S")
 
+def day_night_for_lang(day_night, language):
+    # It's not clear that the Weather Channel API *ever* did this, at least,
+    # as long as Rebble has been involved.  But yet, the Android app seems
+    # to care about this, according to a decompilation.
+    if day_night == 'D' and language[0:2] == 'de':
+        return 'T'
+    return day_night
+
+def mangle_daypart(language, units, day, daypart):
+    return {
+        'fcst_valid': day['validTimeUtc'], # THIS IS NOT QUITE CORRECT
+        'fcst_valid_local': day['validTimeLocal'],
+        'day_ind': day_night_for_lang(daypart['dayOrNight'], language),
+        'thunder_enum': daypart['thunderIndex'], # probably?
+        'daypart_name': daypart['daypartName'], # "Tonight"
+        'long_daypart_name': daypart['daypartName'], # THIS IS NOT QUITE CORRECT: should be "Thursday night"
+        'alt_daypart_name': daypart['daypartName'], # "Tonight"
+        # 'num' is an enumerator, not used by app
+        'thunder_enum_phrase': daypart['thunderCategory'],
+        'temp': daypart['temperature'],
+        'hi': daypart['temperatureHeatIndex'],
+        'wc': daypart['temperatureWindChill'],
+        'pop': daypart['precipChance'], # XXX: is this correct?
+        'icon_extd': daypart['iconCodeExtend'],
+        'icon_code': daypart['iconCode'],
+        # 'wxman' not used by app
+        'phrase_12char': daypart['wxPhraseShort'],
+        'phrase_22char': daypart['wxPhraseLong'],
+        'phrase_32char': daypart['wxPhraseLong'],
+        # 'subphrase_pt1' not used by app
+        # 'subphrase_pt2' not used by app
+        # 'subphrase_pt3' not used by app
+        'precip_type': daypart['precipType'],
+        'rh': daypart['relativeHumidity'],
+        'wspd': daypart['windSpeed'],
+        'wdir': daypart['windDirection'],
+        'wdir_cardinal': daypart['windDirectionCardinal'],
+        'clds': daypart['cloudCover'],
+        # 'pop_phrase' not used by app
+        'temp_phrase': f"{'High' if daypart['dayOrNight'] == 'D' else 'Low'} {daypart['temperature']}{'F' if units == 'e' else 'C'}.", # XXX: i18n
+        # 'accumulation_phrase' not used by app
+        'wind_phrase': daypart['windPhrase'],
+        'shortcast': daypart['wxPhraseLong'],
+        'narrative': daypart['narrative'],
+        'qpf': daypart['qpf'],
+        'snow_qpf': daypart['qpfSnow'],
+        'snow_range': daypart['snowRange'],
+        # 'snow_phrase' not used by app
+        # 'snow_code' not used by app
+        # 'vocal_key' not used by app
+        'qualifier_code': daypart['qualifierCode'],
+        'qualifier': daypart['qualifierPhrase'],
+        'uv_index_raw': daypart['uvIndex'], # THIS IS NOT QUITE CORRECT, 9.7 vs 10
+        'uv_index': daypart['uvIndex'],
+        # 'uv_warning' not used by app
+        'uv_desc': daypart['uvDescription'],
+        # 'golf_index' not used by app
+        # 'golf_category' not used by app
+        'golf_category': 'boring sports'
+    }
+
+def new_ibm_to_old_ibm(language, units, forecast):
+    # Invert the bizarre IBM dictionary-of-arrays.
+    forecast_inv = []
+    for k in forecast:
+        if k == 'daypart':
+            continue
+
+        for day, v in enumerate(forecast[k]):
+            if day >= len(forecast_inv):
+                forecast_inv.append({})
+            forecast_inv[day][k] = v
+
+    # The day parts are even more brain damaged.  Invert them, too.
+    if len(forecast['daypart']) != 1:
+        raise ValueError(f"forecast['daypart'] had wrong number of values {len(forecast['daypart'])}")
+
+    for k in forecast['daypart'][0]:
+        for halfday, v in enumerate(forecast['daypart'][0][k]):
+            # v == None?
+            day = halfday // 2
+            dn = "day" if ((halfday % 2) == 0) else "night"
+            shouldbe = "D" if ((halfday % 2) == 0) else "N"
+            if k == "dayOrNight" and v != shouldbe and v != None:
+                raise ValueError(f"halfday {halfday} should be {dn}, but dayOrNight is {v}")
+            if day >= len(forecast_inv):
+                # There is no day to append this daypart to.
+                continue
+            if forecast_inv[day].get(dn) is None and v == None:
+                continue
+            forecast_inv[day][dn] = forecast_inv[day].get(dn, {})
+            forecast_inv[day][dn][k] = v
+
+    return [{
+        'class': 'fod_long_range_daily',
+        'expire_time_gmt': day['expirationTimeUtc'],
+        'fcst_valid': day['validTimeUtc'],
+        'fcst_valid_local': day['validTimeLocal'],
+        # 'num' is an enumerator, not used by app
+        'max_temp': day['temperatureMax'],
+        'min_temp': day['temperatureMin'],
+        # 'torcon' not used by app
+        # 'stormcon' not used by app
+        # 'blurb' not used by app
+        # 'blurb_author' not used by app
+        'lunar_phase_day': day['moonPhaseDay'],
+        'dow': day['dayOfWeek'],
+        'lunar_phase': day['moonPhase'],
+        'lunar_phase_code': day['moonPhaseCode'],
+        'sunrise': day['sunriseTimeLocal'],
+        'sunset': day['sunsetTimeLocal'],
+        'moonrise': day['moonriseTimeLocal'],
+        'moonset': day['moonsetTimeLocal'],
+        # qualifier_code is a property of a daypart now, not used by app
+        # qualifier is a property of a daypart now, not used by app
+        'qpf': day['qpf'],
+        'snow_qpf': day['qpfSnow'],
+        # snow_range is a property of a daypart now, not used by app
+        # snow_phrase not used by app
+        # snow_code not used by app
+        **({'day':   mangle_daypart(language, units, day, day['day'])} if day.get('day') else {}),
+        **({'night': mangle_daypart(language, units, day, day['night'])} if day.get('night') else {}),
+    } for day in forecast_inv]
+
 
 class HTTPPaymentRequired(HTTPException):
     def __init__(self, description=None, response=None):
@@ -66,6 +190,8 @@ def geocode(latitude, longitude):
     forecast_req = requests.get(f"{ibm_root}/v3/wx/forecast/daily/7day?geocode={latitude},{longitude}&format=json&units={units}&language={language}&apiKey={ibm_key}")
     forecast_req.raise_for_status()
     forecast = forecast_req.json()
+
+    old_style_fcstdaily7 = { 'forecasts': new_ibm_to_old_ibm(language, units, forecast) }
 
     current_req = requests.get(f"{ibm_root}/v1/geocode/{latitude}/{longitude}/observations.json?language={language}&units={units}&apiKey={ibm_key}")
     current_req.raise_for_status()
@@ -125,7 +251,7 @@ def geocode(latitude, longitude):
     return jsonify(
         fcstdaily7={
             'errors': False,
-            'data': forecast,
+            'data': old_style_fcstdaily7,
         },
         conditions={
             'errors': False,

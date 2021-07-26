@@ -194,56 +194,74 @@ def geocode(latitude, longitude):
 
     old_style_fcstdaily7 = { 'forecasts': new_ibm_to_old_ibm(language, units, forecast) }
 
-    current_req = requests.get(f"{ibm_root}/v1/geocode/{latitude}/{longitude}/observations.json?language={language}&units={units}&apiKey={ibm_key}")
+    current_req = requests.get(f"{ibm_root}/v3/wx/observations/current?geocode={latitude},{longitude}&language={language}&units={units}&format=json&apiKey={ibm_key}")
     current_req.raise_for_status()
     current = current_req.json()
-    observation = current['observation']
 
     old_style_conditions = {
-        'metadata': current['metadata'],
+        'metadata': {
+            'language': language,
+            'transaction_id': 'lol!',
+            'version': '1',
+            'latitude': latitude,
+            'longitude': longitude,
+            'units': units,
+            'expire_time_gmt': current['expirationTimeUtc'],
+            'status_code': 200,
+        },
         'observation': {
-            'class': observation['class'],
-            'expire_time_gmt': observation['expire_time_gmt'],
-            'obs_time': observation['valid_time_gmt'],
+            'class': 'observation',
+            'expire_time_gmt': current['expirationTimeUtc'],
+            'obs_time': current['validTimeUtc'],
             # 'obs_time_local': we don't know.
-            'wdir': observation['wdir'],
-            'icon_code': observation['wx_icon'],
-            'icon_extd': observation['icon_extd'],
+            'wdir': current['windDirection'],
+            'icon_code': current['iconCode'],
+            'icon_extd': current['iconCodeExtend'],
             # sunrise: we don't know these, but we could yank them out of the forecast for today.
             # sunset
-            'day_ind': observation['day_ind'],
-            'uv_index': observation['uv_index'],
+            'day_ind': current['dayOrNight'],
+            'uv_index': current['uvIndex'],
             # uv_warning: I don't even know what this is. Apparently numeric.
             # wxman: ???
-            'obs_qualifier_code': observation['qualifier'],
-            'ptend_code': observation['pressure_tend'],
-            'dow': datetime.datetime.utcfromtimestamp(observation['valid_time_gmt']).strftime('%A'),
-            'wdir_cardinal': observation['wdir_cardinal'],  # sometimes this is "CALM", don't know if that's okay
-            'uv_desc': observation['uv_desc'],
+            'obs_qualifier_code': current['obsQualifierCode'],
+            'ptend_code': current['pressureTendencyCode'],
+            'dow': current['dayOfWeek'],
+            'wdir_cardinal': current['windDirectionCardinal'],  # sometimes this is "CALM", don't know if that's okay
+            'uv_desc': current['uvDescription'],
             # I'm just guessing at how the three phrases map.
-            'phrase_12char': observation['blunt_phrase'] or observation['wx_phrase'],
-            'phrase_22char': observation['terse_phrase'] or observation['wx_phrase'],
-            'phrase_32char': observation['wx_phrase'],
-            'ptend_desc': observation['pressure_desc'],
+            'phrase_12char': current['wxPhraseShort'],
+            'phrase_22char': current['wxPhraseMedium'],
+            'phrase_32char': current['wxPhraseLong'],
+            'ptend_desc': current['pressureTendencyTrend'],
             # sky_cover: we don't seem to get a description of this?
-            'clds': observation['clds'],
-            'obs_qualifier_severity': observation['qualifier_svrty'],
+            'clds': current['cloudCoverPhrase'], # old was 'CLR', new is 'Partly Cloudy'
+            'obs_qualifier_severity': current['obsQualifierSeverity'],
             # vocal_key: we don't get one of these
             {'e': 'imperial', 'm': 'metric', 'h': 'uk_hybrid'}[units]: {
-                'wspd': observation['wspd'],
-                'gust': observation['gust'],
-                'vis': observation['vis'],
-                # mslp: don't know what this is but it doesn't map to anything
-                'altimeter': observation['pressure'],
-                'temp': observation['temp'],
-                'dewpt': observation['dewPt'],
-                'rh': observation['rh'],
-                'wc': observation['wc'],
-                'hi': observation['heat_index'],
-                'feels_like': observation['feels_like'],
-                # temp_change_24hour, temp_max_24hour, temp_min_24hour, pchange: don't get any of these
-                # {snow,precip}_{{1,6,24}hour,mtd,season,{2,3,7}day}: don't get these either
-                # ceiling, obs_qualifier_{100,50,32}char: or these.
+                'wspd': current['windSpeed'],
+                'gust': current['windGust'],
+                'vis': current['visibility'],
+                'mslp': current['pressureMeanSeaLevel'],
+                'altimeter': current['pressureAltimeter'],
+                'temp': current['temperature'],
+                'dewpt': current['temperatureDewPoint'],
+                'rh': current['relativeHumidity'],
+                'wc': current['temperatureWindChill'],
+                'hi': current['temperatureHeatIndex'],
+                'feels_like': current['temperatureFeelsLike'],
+                'temp_change_24hour': current['temperatureChange24Hour'],
+                'temp_max_24hour': current['temperatureMax24Hour'],
+                'temp_min_24hour': current['temperatureMin24Hour'],
+                'pchange': current['pressureChange'],
+                'snow_1hour': current['snow1Hour'],
+                'snow_6hour': current['snow6Hour'],
+                'snow_24hour': current['snow24Hour'],
+                'precip_1hour': current['precip1Hour'],
+                'precip_6hour': current['precip6Hour'],
+                'precip_24hour': current['precip24Hour'],
+                # {snow,precip}_{mtd,season,{2,3,7}day}: don't get these either
+                'ceiling': current['cloudCeiling'],
+                # obs_qualifier_{100,50,32}char: or these.
                 # these are all now in their own request that you can pay extra to retrieve.
             },
         }

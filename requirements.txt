@@ -9,4 +9,4 @@ MarkupSafe==1.1.1
 requests==2.19.1
 urllib3==1.23
 Werkzeug==0.14.1
-honeycomb-beeline==2.11.4
+honeycomb-beeline==2.18.0

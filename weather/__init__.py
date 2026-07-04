@@ -4,6 +4,7 @@ import time
 
 import beeline
 from beeline.middleware.flask import HoneyMiddleware
+import beeline.propagation.w3c as w3c
 from beeline.patch import requests
 
 import requests
@@ -13,8 +14,13 @@ from werkzeug.routing import FloatConverter
 
 app = Flask(__name__)
 if os.environ.get('HONEYCOMB_KEY'):
-     beeline.init(writekey=os.environ['HONEYCOMB_KEY'], dataset='rws', service_name='weather')
-     HoneyMiddleware(app, db_events = True)
+    if os.environ.get('O11Y_SHOULD_USE_W3C_TRACE_HEADERS', False):
+        # Only turn this on once EVERYTHING has migrated to the new
+        # rws_common version that supports W3C trace headers.
+        beeline.init(writekey=config['HONEYCOMB_KEY'], dataset='rws', service_name='weather', http_trace_propagation_hook=w3c.http_trace_propagation_hook)
+    else:
+        beeline.init(writekey=config['HONEYCOMB_KEY'], dataset='rws', service_name='weather')
+    HoneyMiddleware(app, db_events = True)
 
 auth_internal = os.environ['REBBLE_AUTH_URL_INT']
 ibm_root = os.environ.get('IBM_API_ROOT', 'https://api.weather.com')
